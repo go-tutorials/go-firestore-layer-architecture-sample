@@ -13,7 +13,7 @@ import (
 
 type ApplicationContext struct {
 	Health *health.Handler
-	User   *handler.UserHandler
+	User   handler.UserPort
 }
 
 func NewApp(ctx context.Context, cfg Config) (*ApplicationContext, error) {
