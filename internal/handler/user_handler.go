@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/core-go/core"
-	"github.com/core-go/search"
+	s "github.com/core-go/search"
 	"github.com/gorilla/mux"
 	"net/http"
 	"reflect"
@@ -16,17 +16,19 @@ import (
 const InternalServerError = "Internal Server Error"
 
 type UserHandler struct {
-	service  UserService
-	Validate func(context.Context, interface{}) ([]core.ErrorMessage, error)
-	LogError func(context.Context, string, ...map[string]interface{})
-	*search.NextSearchHandler
+	service     UserService
+	Validate    func(context.Context, interface{}) ([]core.ErrorMessage, error)
+	LogError    func(context.Context, string, ...map[string]interface{})
+	search      func(context.Context, interface{}, interface{}, int64, string) (string, error)
+	paramIndex  map[string]int
+	filterIndex int
 }
 
-func NewUserHandler(find func(context.Context, interface{}, interface{}, int64, string) (string, error), service UserService, validate func(context.Context, interface{}) ([]core.ErrorMessage, error), logError func(context.Context, string, ...map[string]interface{})) *UserHandler {
+func NewUserHandler(search func(context.Context, interface{}, interface{}, int64, string) (string, error), service UserService, validate func(context.Context, interface{}) ([]core.ErrorMessage, error), logError func(context.Context, string, ...map[string]interface{})) *UserHandler {
 	filterType := reflect.TypeOf(UserFilter{})
-	modelType := reflect.TypeOf(User{})
-	searchHandler := search.NewNextSearchHandler(find, modelType, filterType, logError, nil)
-	return &UserHandler{NextSearchHandler: searchHandler, service: service, Validate: validate, LogError: logError}
+	paramIndex := s.BuildParamIndex(filterType)
+	filterIndex := s.FindFilterIndex(filterType)
+	return &UserHandler{service: service, Validate: validate, LogError: logError, search: search, paramIndex: paramIndex, filterIndex: filterIndex}
 }
 
 func (h *UserHandler) All(w http.ResponseWriter, r *http.Request) {
@@ -176,18 +178,16 @@ func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *UserHandler) Search(w http.ResponseWriter, r *http.Request) {
-	filter := UserFilter{Filter: &search.Filter{}}
-	search.Decode(r, &filter, h.ParamIndex, h.FilterIndex)
+	filter := UserFilter{Filter: &s.Filter{}}
+	s.Decode(r, &filter, h.paramIndex, h.filterIndex)
 
 	var users []User
-
-	nextPageToken, err := h.Find(r.Context(), &filter, &users, filter.Limit, filter.NextPageToken)
+	nextPageToken, err := h.search(r.Context(), &filter, &users, filter.Limit, filter.NextPageToken)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	core.JSON(w, 200, &search.Result{NextPageToken: nextPageToken, List: &users})
-
+	core.JSON(w, 200, &s.Result{List: &users, NextPageToken: nextPageToken})
 }
 
 func JSON(w http.ResponseWriter, code int, res interface{}) error {
@@ -230,4 +230,3 @@ func MakeMap(res interface{}, opts ...string) map[string]interface{} {
 	m[key] = string(b)
 	return m
 }
-
