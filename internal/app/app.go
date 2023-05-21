@@ -7,11 +7,11 @@ import (
 	"github.com/core-go/health"
 	"github.com/core-go/health/firestore"
 	"github.com/core-go/log"
-	"go-service/internal/service"
 	"google.golang.org/api/option"
 
 	"go-service/internal/handler"
 	"go-service/internal/repository"
+	"go-service/internal/service"
 )
 
 type ApplicationContext struct {
