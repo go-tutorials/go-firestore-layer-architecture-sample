@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/core-go/core"
+	"github.com/core-go/search"
 	"github.com/gorilla/mux"
 	"net/http"
 	"reflect"
@@ -18,10 +19,14 @@ type UserHandler struct {
 	service  UserService
 	Validate func(context.Context, interface{}) ([]core.ErrorMessage, error)
 	LogError func(context.Context, string, ...map[string]interface{})
+	*search.NextSearchHandler
 }
 
-func NewUserHandler(service UserService, validate func(context.Context, interface{}) ([]core.ErrorMessage, error), logError func(context.Context, string, ...map[string]interface{})) *UserHandler {
-	return &UserHandler{service: service, Validate: validate, LogError: logError}
+func NewUserHandler(find func(context.Context, interface{}, interface{}, int64, string) (string, error), service UserService, validate func(context.Context, interface{}) ([]core.ErrorMessage, error), logError func(context.Context, string, ...map[string]interface{})) *UserHandler {
+	filterType := reflect.TypeOf(UserFilter{})
+	modelType := reflect.TypeOf(User{})
+	searchHandler := search.NewNextSearchHandler(find, modelType, filterType, logError, nil)
+	return &UserHandler{NextSearchHandler: searchHandler, service: service, Validate: validate, LogError: logError}
 }
 
 func (h *UserHandler) All(w http.ResponseWriter, r *http.Request) {
@@ -168,6 +173,21 @@ func (h *UserHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 	status := GetStatus(res)
 	JSON(w, status, res)
+}
+
+func (h *UserHandler) Search(w http.ResponseWriter, r *http.Request) {
+	filter := UserFilter{Filter: &search.Filter{}}
+	search.Decode(r, &filter, h.ParamIndex, h.FilterIndex)
+
+	var users []User
+
+	nextPageToken, err := h.Find(r.Context(), &filter, &users, filter.Limit, filter.NextPageToken)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	core.JSON(w, 200, &search.Result{NextPageToken: nextPageToken, List: &users})
+
 }
 
 func JSON(w http.ResponseWriter, code int, res interface{}) error {
