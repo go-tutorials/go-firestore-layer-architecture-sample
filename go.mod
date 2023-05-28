@@ -14,5 +14,5 @@ require (
 	github.com/go-playground/validator/v10 v10.14.0 // indirect
 	github.com/gorilla/mux v1.8.0
 	github.com/sirupsen/logrus v1.9.0 // indirect
-	google.golang.org/api v0.122.0
+	google.golang.org/api v0.124.0
 )
