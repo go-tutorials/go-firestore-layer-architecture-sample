@@ -37,7 +37,10 @@ func NewApp(ctx context.Context, cfg Config) (*ApplicationContext, error) {
 	}
 
 	logError := log.LogError
-	validator := v.NewValidator()
+	validator, err := v.NewValidator()
+	if err != nil {
+		return nil, err
+	}
 
 	userType := reflect.TypeOf(model.User{})
 	userQuery := query.NewBuilder(userType)
